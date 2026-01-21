@@ -25,6 +25,8 @@ func Execute() {
 		Action: func(ctx context.Context, c *cli.Command) error {
 			port := c.String("port")
 
+			store := NewStorage()
+
 			listener, err := net.Listen("tcp", ":"+port)
 			if err != nil {
 				return fmt.Errorf("failed to bind port %s: %w\n", port, err)
@@ -39,7 +41,7 @@ func Execute() {
 					continue
 				}
 
-				go handleConnection(conn)
+				go handleConnection(conn, store)
 			}
 		},
 	}
@@ -50,7 +52,7 @@ func Execute() {
 	}
 }
 
-func handleConnection(conn net.Conn) {
+func handleConnection(conn net.Conn, store *Storage) {
 	defer conn.Close()
 
 	fmt.Printf("New connection from %s\n", conn.RemoteAddr())
@@ -71,10 +73,6 @@ func handleConnection(conn net.Conn) {
 		case "PING":
 			conn.Write([]byte("+PONG\r\n"))
 
-		case "QUIT":
-			conn.Write([]byte("+OK Bye\r\n"))
-			return
-
 		case "ECHO":
 			if len(args) < 2 {
 				conn.Write([]byte("-ERR wrong number of arguments\r\n"))
@@ -83,6 +81,35 @@ func handleConnection(conn net.Conn) {
 
 			message := strings.Join(args[1:], " ")
 			conn.Write([]byte("+" + message + "\r\n"))
+
+		case "SET":
+			if len(args) < 3 {
+				conn.Write([]byte("-ERR wrong number of arguments for 'set' command\r\n"))
+				continue
+			}
+			key := args[1]
+			value := strings.Join(args[2:], " ")
+
+			store.Set(key, value)
+			conn.Write([]byte("+OK\r\n"))
+
+		case "GET":
+			if len(args) != 2 {
+				conn.Write([]byte("-ERR wrong number of arguments for 'get' command\r\n"))
+				continue
+			}
+			key := args[1]
+
+			val, found := store.Get(key)
+			if !found {
+				conn.Write([]byte("+(nil)\r\n"))
+			} else {
+				conn.Write([]byte("+" + val + "\r\n"))
+			}
+
+		case "QUIT":
+			conn.Write([]byte("+OK Bye\r\n"))
+			return
 
 		default:
 			conn.Write([]byte("-ERR unknown command '" + command + "'\r\n"))
