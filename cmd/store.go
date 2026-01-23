@@ -1,6 +1,9 @@
 package cmd
 
-import "sync"
+import (
+	"iter"
+	"sync"
+)
 
 type Storage struct {
 	data map[string]string
@@ -26,4 +29,17 @@ func (s *Storage) Get(key string) (string, bool) {
 
 	val, ok := s.data[key]
 	return val, ok
+}
+
+func (s *Storage) Keys() iter.Seq[string] {
+	return func(yield func(string) bool) {
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+
+		for k := range s.data {
+			if !yield(k) {
+				return
+			}
+		}
+	}
 }

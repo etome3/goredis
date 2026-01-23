@@ -32,7 +32,7 @@ func Execute() {
 				return fmt.Errorf("failed to bind port %s: %w\n", port, err)
 			}
 
-			fmt.Printf("Redis-Lite listening on port %s...\n", port)
+			fmt.Printf("goredis listening on port %s...\n", port)
 
 			for {
 				conn, err := listener.Accept()
@@ -106,6 +106,12 @@ func handleConnection(conn net.Conn, store *Storage) {
 			} else {
 				conn.Write([]byte("+" + val + "\r\n"))
 			}
+
+		case "KEYS":
+			for key := range store.Keys() {
+				conn.Write([]byte("+key: " + key + "\r\n"))
+			}
+			conn.Write([]byte("+OK (End of Keys)\r\n"))
 
 		case "QUIT":
 			conn.Write([]byte("+OK Bye\r\n"))
